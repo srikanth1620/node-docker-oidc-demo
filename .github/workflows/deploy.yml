@@ -18,6 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # OIDC Login to Azure
       - name: Login to Azure using OIDC
         uses: azure/login@v2
         with:
@@ -25,12 +26,14 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Login to ACR using OIDC (Correct way)
       - name: Login to ACR
-        uses: azure/docker-login@v2
+        uses: docker/login-action@v3
         with:
-          login-server: nodeoidcdemoacr.azurecr.io
+          registry: nodeoidcdemoacr.azurecr.io
 
-      - name: Build and push Docker image
+      # Build and push Docker image
+      - name: Build and push Docker image to ACR
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -39,6 +42,7 @@ jobs:
             nodeoidcdemoacr.azurecr.io/node-docker-demo:${{ github.sha }}
             nodeoidcdemoacr.azurecr.io/node-docker-demo:latest
 
+      # Deploy to Azure App Service
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
