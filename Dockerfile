@@ -1,4 +1,4 @@
-# Minimal Dockerfile for testing ACR push (dry run)
+# Minimal Dockerfile for testing ACR push (dry run!!)
 
 FROM node:18-alpine
 
