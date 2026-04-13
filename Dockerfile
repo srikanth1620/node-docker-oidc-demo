@@ -1,36 +1,14 @@
-# Multi-stage Dockerfile
+# Minimal Dockerfile for testing ACR push (dry run)
 
-# ===== Builder Stage =====
-FROM node:18-alpine AS builder
-WORKDIR /app
-
-# Copy package files first for better caching
-COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy source code
-COPY . .
-
-# Build the app (if you have a build step)
-RUN npm run build --if-present
-
-# ===== Production Stage =====
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy only necessary files from builder
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app ./
+# Create a simple dummy file so the build doesn't fail
+RUN echo "Hello from Node.js Docker demo" > index.js
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S -u 1001 -G nodejs nodeuser
-
-USER nodeuser
-
+# Expose port (standard for Node.js apps)
 EXPOSE 8080
 
-# Start the app
-CMD ["npm", "start"]
+# Dummy start command
+CMD ["node", "index.js"]
