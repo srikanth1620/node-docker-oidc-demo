@@ -25,11 +25,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Use Azure ACR login with OIDC
+      # Login to ACR using az acr login (most reliable with OIDC)
       - name: Login to ACR
-        uses: azure/docker-login@v2
-        with:
-          login-server: nodeoidcdemoacr.azurecr.io
+        run: az acr login --name nodeoidcdemoacr
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
