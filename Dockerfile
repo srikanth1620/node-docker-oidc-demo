@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Node.js app
+# Multi-stage Dockerfile
 
 # ===== Builder Stage =====
 FROM node:18-alpine AS builder
