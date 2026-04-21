@@ -10,12 +10,11 @@ on:
 permissions:
   contents: read
   id-token: write
-  pull-requests: write   # Allows Claude to comment on PRs
+  pull-requests: write
 
 jobs:
   security-check:
     runs-on: ubuntu-latest
-    # Run security check ONLY on pull requests (this avoids the push error)
     if: github.event_name == 'pull_request'
 
     steps:
@@ -25,44 +24,55 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code Security Review
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           prompt: |
-            You are a senior security engineer performing a security audit on this Node.js + Docker codebase.
+            You are a senior application security engineer performing a thorough security audit on this Node.js + Docker project.
 
-            Focus especially on any changes in this pull request.
+            Focus especially on the changes introduced in this pull request.
 
-            Check for:
-            - Vulnerable npm dependencies
+            Scan carefully for the following:
+            - Vulnerable or outdated npm dependencies (check package.json and package-lock.json)
             - Command injection, XSS, prototype pollution, insecure deserialization
-            - Hardcoded secrets or credentials
-            - Docker security issues (base image, permissions, exposed ports)
-            - Weak input validation or authentication flaws
+            - Hardcoded secrets, API keys, or sensitive credentials
+            - Docker/container security issues (unsafe base images, running as root, exposed ports, etc.)
+            - Weak input validation, authentication/authorization flaws
+            - Any other high or critical security risks
 
-            For each issue found, give:
-            - Severity (Critical / High / Medium / Low)
-            - File and line number if possible
-            - Risk explanation
-            - How to fix it
+            For every finding, clearly include:
+            - Severity: Critical / High / Medium / Low
+            - File and line number (if possible)
+            - Brief explanation of the risk
+            - Recommended fix
 
-            At the end, output exactly one line:
+            At the **very end** of your entire response, you must output exactly one of these two lines and nothing else after it:
+
             SECURITY REVIEW PASSED
+
             or
-            SECURITY REVIEW FAILED - CRITICAL/HIGH ISSUES FOUND
+
+            SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND
+
+      - name: Display Claude Security Report
+        run: |
+          echo "=== CLAUDE SECURITY REPORT ==="
+          echo "${{ steps.claude.outputs.result || 'No output received from Claude' }}"
+          echo "=============================="
 
       - name: Fail if critical security issues found
         run: |
-          if grep -qi "SECURITY REVIEW FAILED" claude-output.txt 2>/dev/null || [ ! -f claude-output.txt ]; then
-            echo "❌ Security review failed."
+          if echo "${{ steps.claude.outputs.result }}" | grep -qi "SECURITY REVIEW FAILED"; then
+            echo "❌ Security review FAILED - Critical or High severity issues detected."
             exit 1
           else
-            echo "✅ Security review passed."
+            echo "✅ Security review PASSED (no critical or high severity issues found)."
           fi
         shell: bash
 
   build-and-deploy:
-    # Deploy only happens on push to main (after security check passes on PRs)
     needs: security-check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
