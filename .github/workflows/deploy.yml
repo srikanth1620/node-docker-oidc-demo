@@ -30,51 +30,37 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true
           prompt: |
-            You are a senior application security engineer performing a thorough security audit on this Node.js + Docker project.
+            You are a senior application security engineer. Audit this Node.js + Docker codebase, focusing on PR changes.
 
-            Focus especially on the changes introduced in this pull request.
+            Check for vulnerabilities in dependencies, code injection risks, secrets, Docker issues, etc.
 
-            Scan carefully for the following:
-            - Vulnerable or outdated npm dependencies (check package.json and package-lock.json)
-            - Command injection, XSS, prototype pollution, insecure deserialization
-            - Hardcoded secrets, API keys, or sensitive credentials
-            - Docker/container security issues (unsafe base images, running as root, exposed ports, etc.)
-            - Weak input validation, authentication/authorization flaws
-            - Any other high or critical security risks
-
-            For every finding, clearly include:
-            - Severity: Critical / High / Medium / Low
-            - File and line number (if possible)
-            - Brief explanation of the risk
-            - Recommended fix
-
-            At the **very end** of your entire response, you must output exactly one of these two lines and nothing else after it:
-
+            At the very end, output exactly:
             SECURITY REVIEW PASSED
-
             or
-
             SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND
 
       - name: Display Claude Security Report
         run: |
           echo "=== CLAUDE SECURITY REPORT ==="
-          echo "${{ steps.claude.outputs.result || 'No output received from Claude' }}"
+          echo "${{ steps.claude.outputs.result || 'No output' }}"
           echo "=============================="
 
-      - name: Fail if critical security issues found
+      - name: Fail if critical issues found
         run: |
           if echo "${{ steps.claude.outputs.result }}" | grep -qi "SECURITY REVIEW FAILED"; then
-            echo "❌ Security review FAILED - Critical or High severity issues detected."
+            echo "❌ Security review FAILED"
             exit 1
           else
-            echo "✅ Security review PASSED (no critical or high severity issues found)."
+            echo "✅ Security review PASSED"
           fi
         shell: bash
 
   build-and-deploy:
     needs: security-check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Improved condition: Run on direct push to main OR when a PR is successfully merged
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
 
     steps:
@@ -106,3 +92,6 @@ jobs:
           app-name: 'node-docker-demo-app'
           slot-name: 'Production'
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
+
+      - name: Deployment Summary
+        run: echo "✅ Deployment completed successfully!"
