@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-    types: [opened, synchronize, reopened, closed]   # Added 'closed'
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 permissions:
@@ -16,6 +16,7 @@ permissions:
 jobs:
   security-check:
     runs-on: ubuntu-latest
+    # Run security check only when PR is opened/updated (not when closed/merged)
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
 
     steps:
@@ -33,7 +34,9 @@ jobs:
           use_app_token: false
           show_full_output: true
           prompt: |
-            You are a senior application security engineer. Audit this Node.js + Docker codebase, focusing on changes in this PR.
+            You are a senior application security engineer auditing this Node.js + Docker project.
+
+            Focus on changes in this pull request.
 
             At the very end, output exactly one of these two lines:
 
@@ -60,8 +63,10 @@ jobs:
         shell: bash
 
   build-and-deploy:
+    # This job runs in these cases:
+    # 1. Direct push to main
+    # 2. When a PR is successfully merged into main
     needs: security-check
-    # Run on direct push to main OR when a PR is successfully merged
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
@@ -98,4 +103,4 @@ jobs:
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
 
       - name: Deployment Summary
-        run: echo "✅ Deployment completed successfully to Azure!"
+        run: echo "✅ Deployment completed successfully!"
