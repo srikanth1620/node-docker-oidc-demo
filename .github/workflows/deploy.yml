@@ -4,70 +4,69 @@ on:
   push:
     branches:
       - main
+  pull_request:          # ← Added this
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
+  pull-requests: write   # Needed for Claude to comment on PRs
 
 jobs:
-  # New job: Security vulnerability check using Claude Code
+  # Security check - now runs on PRs (and can optionally run on push to main)
   security-check:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write   # Optional: allows Claude to comment on PRs if triggered via PR
-      issues: write          # Optional
+    # Only run security check on PRs (recommended) or on push to main
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Full history helps Claude understand context better
+          fetch-depth: 0
 
       - name: Run Claude Code Security Review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Strong security-focused prompt
           prompt: |
-            You are a senior application security engineer performing a thorough security audit.
+            You are a senior application security engineer. Perform a focused security audit on this codebase, with emphasis on the changes in this pull request (if any).
 
-            Analyze the entire codebase (and any changes since the last commit) for security vulnerabilities and risks, with special focus on:
-            - Dependency vulnerabilities (npm packages with known CVEs)
-            - Insecure code patterns common in Node.js (e.g., command injection, XSS, insecure deserialization, prototype pollution)
-            - Hardcoded secrets, API keys, or sensitive data
-            - Docker / container security issues (exposed ports, insecure base images, missing security headers)
-            - Authentication & authorization flaws
-            - Input validation / sanitization problems
-            - Potential remote code execution or denial-of-service vectors
+            Look specifically for:
+            - Known vulnerable dependencies (check package.json / package-lock.json)
+            - Node.js security anti-patterns (command injection, XSS, insecure random, prototype pollution, etc.)
+            - Hardcoded credentials or secrets
+            - Docker security issues (base image, exposed ports, permissions)
+            - Input validation weaknesses
+            - Any other high/critical severity risks
 
-            Prioritize HIGH and CRITICAL severity issues. For each finding:
-            1. Describe the vulnerability clearly
-            2. Show the exact location (file + line if possible)
-            3. Explain the risk and potential impact
-            4. Provide a concrete remediation step
+            For every finding, provide:
+            1. Severity (Critical / High / Medium / Low)
+            2. File and line (if possible)
+            3. Clear explanation of the risk
+            4. Recommended fix
 
-            If you find any critical or high-severity issues, end your response with the exact phrase:
-            "SECURITY REVIEW FAILED - CRITICAL ISSUES FOUND"
+            At the very end of your response, output exactly one of these two lines:
+            SECURITY REVIEW PASSED
+            or
+            SECURITY REVIEW FAILED - CRITICAL/HIGH ISSUES FOUND
 
-            Otherwise, end with: "SECURITY REVIEW PASSED"
-          # Optional: Make it more agentic if you want Claude to also suggest fixes
-          # mode: "review"   # or other supported modes
-
-      - name: Check Security Review Result
+      - name: Fail job if critical issues found
         run: |
-          if grep -q "SECURITY REVIEW FAILED" "${GITHUB_WORKSPACE}/claude-output.txt" || [ ! -f "${GITHUB_WORKSPACE}/claude-output.txt" ]; then
-            echo "❌ Security review failed or produced no output."
+          if grep -qi "SECURITY REVIEW FAILED" claude-output.txt 2>/dev/null || [ ! -f claude-output.txt ]; then
+            echo "❌ Security review failed due to critical or high severity issues."
             exit 1
           else
             echo "✅ Security review passed."
           fi
         shell: bash
 
-  # Original deploy job - now depends on successful security check
+  # Deploy job only runs after successful security check (and only on push to main)
   build-and-deploy:
     needs: security-check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'   # Only deploy on push to main
     runs-on: ubuntu-latest
 
     steps:
@@ -81,7 +80,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Login to ACR using az acr login (most reliable with OIDC)
       - name: Login to ACR
         run: az acr login --name nodeoidcdemoacr
 
