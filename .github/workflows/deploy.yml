@@ -2,24 +2,21 @@ name: Deploy Node.js Docker App to Azure
 
 on:
   push:
-    branches:
-      - main
-  pull_request:          # ← Added this
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
-  pull-requests: write   # Needed for Claude to comment on PRs
+  pull-requests: write   # Allows Claude to comment on PRs
 
 jobs:
-  # Security check - now runs on PRs (and can optionally run on push to main)
   security-check:
     runs-on: ubuntu-latest
-    # Only run security check on PRs (recommended) or on push to main
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # Run security check ONLY on pull requests (this avoids the push error)
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
@@ -32,41 +29,42 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            You are a senior application security engineer. Perform a focused security audit on this codebase, with emphasis on the changes in this pull request (if any).
+            You are a senior security engineer performing a security audit on this Node.js + Docker codebase.
 
-            Look specifically for:
-            - Known vulnerable dependencies (check package.json / package-lock.json)
-            - Node.js security anti-patterns (command injection, XSS, insecure random, prototype pollution, etc.)
-            - Hardcoded credentials or secrets
-            - Docker security issues (base image, exposed ports, permissions)
-            - Input validation weaknesses
-            - Any other high/critical severity risks
+            Focus especially on any changes in this pull request.
 
-            For every finding, provide:
-            1. Severity (Critical / High / Medium / Low)
-            2. File and line (if possible)
-            3. Clear explanation of the risk
-            4. Recommended fix
+            Check for:
+            - Vulnerable npm dependencies
+            - Command injection, XSS, prototype pollution, insecure deserialization
+            - Hardcoded secrets or credentials
+            - Docker security issues (base image, permissions, exposed ports)
+            - Weak input validation or authentication flaws
 
-            At the very end of your response, output exactly one of these two lines:
+            For each issue found, give:
+            - Severity (Critical / High / Medium / Low)
+            - File and line number if possible
+            - Risk explanation
+            - How to fix it
+
+            At the end, output exactly one line:
             SECURITY REVIEW PASSED
             or
             SECURITY REVIEW FAILED - CRITICAL/HIGH ISSUES FOUND
 
-      - name: Fail job if critical issues found
+      - name: Fail if critical security issues found
         run: |
           if grep -qi "SECURITY REVIEW FAILED" claude-output.txt 2>/dev/null || [ ! -f claude-output.txt ]; then
-            echo "❌ Security review failed due to critical or high severity issues."
+            echo "❌ Security review failed."
             exit 1
           else
             echo "✅ Security review passed."
           fi
         shell: bash
 
-  # Deploy job only runs after successful security check (and only on push to main)
   build-and-deploy:
+    # Deploy only happens on push to main (after security check passes on PRs)
     needs: security-check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'   # Only deploy on push to main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
