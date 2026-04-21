@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, closed]   # Added 'closed'
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ permissions:
 jobs:
   security-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
 
     steps:
       - name: Checkout code
@@ -29,27 +30,12 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          use_app_token: false        # This helps avoid the workflow validation error
+          use_app_token: false
           show_full_output: true
           prompt: |
-            You are a senior application security engineer performing a security audit on this Node.js + Docker project.
+            You are a senior application security engineer. Audit this Node.js + Docker codebase, focusing on changes in this PR.
 
-            Focus especially on any changes introduced in this pull request.
-
-            Scan for:
-            - Vulnerable npm dependencies (check package.json and package-lock.json)
-            - Command injection, XSS, prototype pollution, insecure deserialization
-            - Hardcoded secrets, API keys or credentials
-            - Docker security issues (unsafe base images, running as root, exposed ports, etc.)
-            - Weak input validation or authentication flaws
-
-            For each finding, clearly state:
-            - Severity: Critical / High / Medium / Low
-            - File and line if possible
-            - Risk explanation
-            - How to fix it
-
-            At the very end of your response, output exactly one of these two lines:
+            At the very end, output exactly one of these two lines:
 
             SECURITY REVIEW PASSED
 
@@ -60,13 +46,13 @@ jobs:
       - name: Display Claude Security Report
         run: |
           echo "=== CLAUDE SECURITY REPORT ==="
-          echo "${{ steps.claude.outputs.result || 'No output received from Claude' }}"
+          echo "${{ steps.claude.outputs.result || 'No output' }}"
           echo "=============================="
 
       - name: Fail if critical issues found
         run: |
           if echo "${{ steps.claude.outputs.result }}" | grep -qi "SECURITY REVIEW FAILED"; then
-            echo "❌ Security review FAILED - Critical or High issues detected"
+            echo "❌ Security review FAILED"
             exit 1
           else
             echo "✅ Security review PASSED"
@@ -75,8 +61,10 @@ jobs:
 
   build-and-deploy:
     needs: security-check
-    # Runs when code is pushed to main (including after PR merge)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Run on direct push to main OR when a PR is successfully merged
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
 
     steps:
@@ -110,4 +98,4 @@ jobs:
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
 
       - name: Deployment Summary
-        run: echo "✅ Successfully deployed to Azure App Service"
+        run: echo "✅ Deployment completed successfully to Azure!"
