@@ -5,7 +5,6 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 permissions:
@@ -16,8 +15,8 @@ permissions:
 jobs:
   security-check:
     runs-on: ubuntu-latest
-    # Run security check only when PR is opened/updated (not when closed/merged)
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    # Only run on Pull Requests
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
@@ -34,9 +33,9 @@ jobs:
           use_app_token: false
           show_full_output: true
           prompt: |
-            You are a senior application security engineer auditing this Node.js + Docker project.
+            You are a senior application security engineer. Audit this Node.js + Docker project.
 
-            Focus on changes in this pull request.
+            Focus on changes in this pull request if any.
 
             At the very end, output exactly one of these two lines:
 
@@ -63,14 +62,12 @@ jobs:
         shell: bash
 
   build-and-deploy:
-    # This job runs in these cases:
-    # 1. Direct push to main
-    # 2. When a PR is successfully merged into main
-    needs: security-check
-    if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
+    # Run on: direct push to main OR manual trigger OR after PR merge
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
 
     steps:
       - name: Checkout code
