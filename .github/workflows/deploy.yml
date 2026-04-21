@@ -11,7 +11,63 @@ permissions:
   id-token: write
 
 jobs:
+  # New job: Security vulnerability check using Claude Code
+  security-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # Optional: allows Claude to comment on PRs if triggered via PR
+      issues: write          # Optional
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Full history helps Claude understand context better
+
+      - name: Run Claude Code Security Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Strong security-focused prompt
+          prompt: |
+            You are a senior application security engineer performing a thorough security audit.
+
+            Analyze the entire codebase (and any changes since the last commit) for security vulnerabilities and risks, with special focus on:
+            - Dependency vulnerabilities (npm packages with known CVEs)
+            - Insecure code patterns common in Node.js (e.g., command injection, XSS, insecure deserialization, prototype pollution)
+            - Hardcoded secrets, API keys, or sensitive data
+            - Docker / container security issues (exposed ports, insecure base images, missing security headers)
+            - Authentication & authorization flaws
+            - Input validation / sanitization problems
+            - Potential remote code execution or denial-of-service vectors
+
+            Prioritize HIGH and CRITICAL severity issues. For each finding:
+            1. Describe the vulnerability clearly
+            2. Show the exact location (file + line if possible)
+            3. Explain the risk and potential impact
+            4. Provide a concrete remediation step
+
+            If you find any critical or high-severity issues, end your response with the exact phrase:
+            "SECURITY REVIEW FAILED - CRITICAL ISSUES FOUND"
+
+            Otherwise, end with: "SECURITY REVIEW PASSED"
+          # Optional: Make it more agentic if you want Claude to also suggest fixes
+          # mode: "review"   # or other supported modes
+
+      - name: Check Security Review Result
+        run: |
+          if grep -q "SECURITY REVIEW FAILED" "${GITHUB_WORKSPACE}/claude-output.txt" || [ ! -f "${GITHUB_WORKSPACE}/claude-output.txt" ]; then
+            echo "❌ Security review failed or produced no output."
+            exit 1
+          else
+            echo "✅ Security review passed."
+          fi
+        shell: bash
+
+  # Original deploy job - now depends on successful security check
   build-and-deploy:
+    needs: security-check
     runs-on: ubuntu-latest
 
     steps:
