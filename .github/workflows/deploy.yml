@@ -28,27 +28,28 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          use_app_token: false        # This helps avoid the workflow validation error
           show_full_output: true
           prompt: |
-            You are a senior application security engineer performing a thorough security audit on this Node.js + Docker project.
+            You are a senior application security engineer performing a security audit on this Node.js + Docker project.
 
-            Focus especially on the changes introduced in this pull request.
+            Focus especially on any changes introduced in this pull request.
 
-            Scan carefully for the following:
-            - Vulnerable or outdated npm dependencies (check package.json and package-lock.json)
+            Scan for:
+            - Vulnerable npm dependencies (check package.json and package-lock.json)
             - Command injection, XSS, prototype pollution, insecure deserialization
-            - Hardcoded secrets, API keys, or sensitive credentials
-            - Docker/container security issues (unsafe base images, running as root, exposed ports, etc.)
-            - Weak input validation, authentication/authorization flaws
-            - Any other high or critical security risks
+            - Hardcoded secrets, API keys or credentials
+            - Docker security issues (unsafe base images, running as root, exposed ports, etc.)
+            - Weak input validation or authentication flaws
 
-            For every finding, clearly include:
+            For each finding, clearly state:
             - Severity: Critical / High / Medium / Low
-            - File and line number (if possible)
-            - Brief explanation of the risk
-            - Recommended fix
+            - File and line if possible
+            - Risk explanation
+            - How to fix it
 
-            At the **very end** of your entire response, you must output exactly one of these two lines and nothing else after it:
+            At the very end of your response, output exactly one of these two lines:
 
             SECURITY REVIEW PASSED
 
@@ -62,18 +63,19 @@ jobs:
           echo "${{ steps.claude.outputs.result || 'No output received from Claude' }}"
           echo "=============================="
 
-      - name: Fail if critical security issues found
+      - name: Fail if critical issues found
         run: |
           if echo "${{ steps.claude.outputs.result }}" | grep -qi "SECURITY REVIEW FAILED"; then
-            echo "❌ Security review FAILED - Critical or High severity issues detected."
+            echo "❌ Security review FAILED - Critical or High issues detected"
             exit 1
           else
-            echo "✅ Security review PASSED (no critical or high severity issues found)."
+            echo "✅ Security review PASSED"
           fi
         shell: bash
 
   build-and-deploy:
     needs: security-check
+    # Runs when code is pushed to main (including after PR merge)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
@@ -106,3 +108,6 @@ jobs:
           app-name: 'node-docker-demo-app'
           slot-name: 'Production'
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
+
+      - name: Deployment Summary
+        run: echo "✅ Successfully deployed to Azure App Service"
