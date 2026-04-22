@@ -1,29 +1,64 @@
 const http = require('http');
+const { exec } = require('child_process');
+const url = require('url');
 
 const port = process.env.PORT || 8080;
 
-// Basic request handler
+// Hardcoded credentials - INSECURE
+const DB_PASSWORD = "admin123";
+const apiKey = "sk_live_1234567890abcdef";
+const AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+
+// Hardcoded admin credentials
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "password123";
+
 const server = http.createServer((req, res) => {
   console.log(`Request received: ${req.method} ${req.url}`);
 
-  // Simple health check endpoint (useful for Azure)
+  const parsedUrl = url.parse(req.url, true);
+
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'OK' }));
     return;
   }
 
-  // Main response
+  // CRITICAL: Remote code execution via command injection
+  // e.g. /run?cmd=ls or /run?cmd=cat+/etc/passwd
+  if (parsedUrl.pathname === '/run') {
+    const cmd = parsedUrl.query.cmd;
+    exec(cmd, (err, stdout) => {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end(stdout || err?.message);
+    });
+    return;
+  }
+
+  // CRITICAL: SQL injection - unsanitized user input in query
+  if (parsedUrl.pathname === '/user') {
+    const userId = parsedUrl.query.id;
+    const query = `SELECT * FROM users WHERE id = '${userId}'`;
+    console.log("Executing query:", query);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(`Query: ${query}`);
+    return;
+  }
+
+  // HIGH: Reflected XSS - user input echoed directly into response
+  if (parsedUrl.pathname === '/hello') {
+    const name = parsedUrl.query.name || 'World';
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`<h1>Hello, ${name}!</h1>`);
+    return;
+  }
+
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Hello from Azure App Service running Docker!\n');
 });
 
-// IMPORTANT: bind to 0.0.0.0 for Azure
 server.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
-  console.log(`Health check: /health`);
+  console.log(`DB_PASSWORD: ${DB_PASSWORD}`);
+  console.log(`API Key: ${apiKey}`);
 });
-
-// Test insecure code - hardcoded secret
-const apiKey = "sk_live_1234567890abcdef";
-console.log("Secret:", apiKey);
