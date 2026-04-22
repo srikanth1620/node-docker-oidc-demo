@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   security-check:
+    name: security-check          # ← Important for branch protection
     runs-on: ubuntu-latest
-    # Runs only on Pull Requests
     if: github.event_name == 'pull_request'
 
     steps:
@@ -62,8 +62,9 @@ jobs:
         shell: bash
 
   build-and-deploy:
+    name: build-and-deploy
     runs-on: ubuntu-latest
-    # Runs on direct push to main (including merges) and manual trigger
+    # Runs when code is pushed to main (after successful merge) or manual trigger
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
