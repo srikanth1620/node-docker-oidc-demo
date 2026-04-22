@@ -16,6 +16,7 @@ permissions:
 jobs:
   security-check:
     runs-on: ubuntu-latest
+    # Run security check ONLY when PR is active (opened, updated, etc.)
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
 
     steps:
@@ -35,7 +36,7 @@ jobs:
           prompt: |
             You are a senior application security engineer auditing this Node.js + Docker project.
 
-            Focus on changes in this pull request if any.
+            Focus especially on any changes in this pull request.
 
             At the very end, output exactly one of these two lines:
 
@@ -62,11 +63,17 @@ jobs:
         shell: bash
 
   build-and-deploy:
-    needs: security-check        # ← This makes deploy wait for security
+    needs: security-check
     runs-on: ubuntu-latest
+    # Deploy only runs if:
+    # 1. Security check passed, AND
+    # 2. Either direct push to main OR PR was successfully merged
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+      (needs.security-check.result == 'success') && 
+      (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+      )
 
     steps:
       - name: Checkout code
