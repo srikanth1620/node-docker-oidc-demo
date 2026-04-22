@@ -16,7 +16,7 @@ permissions:
 jobs:
   security-check:
     runs-on: ubuntu-latest
-    # Run security check only on active PRs (not when merged/closed)
+    # Run security check ONLY when PR is active (opened, updated, etc.)
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
 
     steps:
@@ -36,11 +36,9 @@ jobs:
           prompt: |
             You are a senior application security engineer auditing this Node.js + Docker project.
 
-            Focus especially on changes in this pull request.
+            Focus especially on any changes in this pull request.
 
-            Check for vulnerabilities in dependencies, code injection risks, secrets, Docker issues, etc.
-
-            At the very end of your response, you **must** output exactly one of these two lines:
+            At the very end, output exactly one of these two lines:
 
             SECURITY REVIEW PASSED
 
@@ -57,7 +55,7 @@ jobs:
       - name: Fail if critical issues found
         run: |
           if echo "${{ steps.claude.outputs.result }}" | grep -qi "SECURITY REVIEW FAILED"; then
-            echo "❌ Security review FAILED - Critical/High issues detected"
+            echo "❌ Security review FAILED"
             exit 1
           else
             echo "✅ Security review PASSED"
@@ -65,13 +63,17 @@ jobs:
         shell: bash
 
   build-and-deploy:
-    # IMPORTANT: This job runs ONLY if security-check passed AND PR was merged
     needs: security-check
-    if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
-
     runs-on: ubuntu-latest
+    # Deploy only runs if:
+    # 1. Security check passed, AND
+    # 2. Either direct push to main OR PR was successfully merged
+    if: |
+      (needs.security-check.result == 'success') && 
+      (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+      )
 
     steps:
       - name: Checkout code
@@ -104,4 +106,4 @@ jobs:
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
 
       - name: Deployment Summary
-        run: echo "✅ Deployment completed successfully to Azure!"
+        run: echo "✅ Deployment completed successfully!"
