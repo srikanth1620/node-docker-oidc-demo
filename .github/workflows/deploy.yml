@@ -16,6 +16,7 @@ jobs:
   security-check:
     name: security-check          # ← Important for branch protection
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
@@ -29,7 +30,6 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          use_app_token: false
           show_full_output: true
           prompt: |
             You are a senior application security engineer auditing this Node.js + Docker project.
@@ -64,7 +64,7 @@ jobs:
     name: build-and-deploy
     needs: security-check
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: always() && (needs.security-check.result == 'success' || needs.security-check.result == 'skipped') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: Checkout code
