@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   security-check:
-    name: security-check          # ← Important for branch protection
+    name: security-check
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
 
@@ -63,9 +63,9 @@ jobs:
 
   build-and-deploy:
     name: build-and-deploy
+    needs: security-check
+    if: always() && needs.security-check.result == 'success'
     runs-on: ubuntu-latest
-    # Runs when code is pushed to main (after successful merge) or manual trigger
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code

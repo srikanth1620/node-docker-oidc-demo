@@ -2,17 +2,70 @@ name: Deploy Node.js Docker App to Azure
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
+  pull-requests: write
 
 jobs:
-  build-and-deploy:
+  security-check:
+    name: security-check          # ← Important for branch protection
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Security Review
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          use_app_token: false
+          show_full_output: true
+          prompt: |
+            You are a senior application security engineer auditing this Node.js + Docker project.
+
+            Focus especially on changes in this pull request.
+
+            At the very end, output exactly one of these two lines:
+
+            SECURITY REVIEW PASSED
+
+            or
+
+            SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND
+
+      - name: Display Claude Security Report
+        run: |
+          echo "=== CLAUDE SECURITY REPORT ==="
+          echo "${{ steps.claude.outputs.result || 'No output' }}"
+          echo "=============================="
+
+      - name: Fail if critical issues found
+        run: |
+          if echo "${{ steps.claude.outputs.result }}" | grep -qi "SECURITY REVIEW FAILED"; then
+            echo "❌ Security review FAILED"
+            exit 1
+          else
+            echo "✅ Security review PASSED"
+          fi
+        shell: bash
+
+  build-and-deploy:
+    name: build-and-deploy
+    runs-on: ubuntu-latest
+    # Runs when code is pushed to main (after successful merge) or manual trigger
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code
@@ -25,7 +78,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Login to ACR using az acr login (most reliable with OIDC)
       - name: Login to ACR
         run: az acr login --name nodeoidcdemoacr
 
@@ -44,3 +96,6 @@ jobs:
           app-name: 'node-docker-demo-app'
           slot-name: 'Production'
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
+
+      - name: Deployment Summary
+        run: echo "✅ Deployment completed successfully!"

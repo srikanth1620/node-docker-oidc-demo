@@ -23,3 +23,7 @@ server.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
   console.log(`Health check: /health`);
 });
+
+// Test insecure code - hardcoded secret
+const apiKey = "sk_live_1234567890abcdef";
+console.log("Secret:", apiKey);
