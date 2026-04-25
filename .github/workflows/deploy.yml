@@ -64,10 +64,13 @@ jobs:
             -d "$payload")
 
           # Extract and display full response
-          verdict=$(echo "$response" | jq -r '.content[0].text')
+          verdict=$(echo "$response" | jq -r '.content[0].text // "ERROR: No response from Claude"')
           echo "=== CLAUDE SECURITY REPORT ==="
           echo "$verdict"
           echo "=============================="
+
+          # Save report as artifact
+          echo "$verdict" > /tmp/security-report.txt
 
           # Fail if critical issues found
           if echo "$verdict" | grep -qi "SECURITY REVIEW FAILED"; then
@@ -76,6 +79,13 @@ jobs:
           else
             echo "✅ Security review PASSED"
           fi
+
+      - name: Upload Security Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-security-report
+          path: /tmp/security-report.txt
 
   build-and-deploy:
     name: build-and-deploy
