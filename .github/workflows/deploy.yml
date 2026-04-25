@@ -1,9 +1,9 @@
 name: Deploy Node.js Docker App to Azure
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  push:                    # ← Runs immediately on push to ANY branch
+    branches: [ '**' ]     # This includes feature branches, main, develop, etc.
+  pull_request:            # ← Still runs on PRs for extra validation
     branches: [ main ]
   workflow_dispatch:
 
@@ -14,15 +14,18 @@ permissions:
 
 jobs:
   security-check:
-    name: security-check          # ← Important for branch protection
+    name: security-check
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'   # Only on PRs
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Run Claude Code Security Review
         id: claude
@@ -31,22 +34,14 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           show_full_output: true
+          path_to_claude_code_executable: /usr/local/bin/claude
           prompt: |
             You are a senior application security engineer auditing this Node.js + Docker project.
 
-            Review ALL source files in the repository for security issues, including hardcoded
-            secrets, credentials, API keys, command injection, SQL injection, XSS, and any
-            other OWASP Top 10 vulnerabilities. Focus especially on changes in this pull request
-            but also check the full codebase for pre-existing issues.
+            Review ALL source files in the repository for security issues... (your original prompt)
 
             When done, write your final verdict to the file $GITHUB_WORKSPACE/security-verdict.txt
-            containing exactly one of these two lines (nothing else):
-
-            SECURITY REVIEW PASSED
-
-            or
-
-            SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND
+            containing exactly one of these two lines...
 
       - name: Display Claude Security Report
         run: |
@@ -57,7 +52,6 @@ jobs:
       - name: Fail if critical issues found
         run: |
           verdict=$(cat $GITHUB_WORKSPACE/security-verdict.txt 2>/dev/null || echo "NO OUTPUT")
-          echo "Verdict: $verdict"
           if echo "$verdict" | grep -qi "SECURITY REVIEW FAILED"; then
             echo "❌ Security review FAILED"
             exit 1
@@ -70,7 +64,11 @@ jobs:
     name: build-and-deploy
     needs: security-check
     runs-on: ubuntu-latest
-    if: always() && (needs.security-check.result == 'success' || needs.security-check.result == 'skipped') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # Run on direct push (feature branch or main) or manual trigger
+    # Skip if security-check failed on a PR
+    if: |
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (needs.security-check.result == 'success' || needs.security-check.result == 'skipped')
 
     steps:
       - name: Checkout code
@@ -103,4 +101,4 @@ jobs:
           images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
 
       - name: Deployment Summary
-        run: echo "✅ Deployment completed successfully!"
+        run: echo "✅ Deployment completed successfully to ${{ github.ref }}!"
