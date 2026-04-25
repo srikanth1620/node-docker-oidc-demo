@@ -1,9 +1,9 @@
 name: Deploy Node.js Docker App to Azure
 
 on:
-  push:                    # ← Runs immediately on push to ANY branch
-    branches: [ '**' ]     # This includes feature branches, main, develop, etc.
-  pull_request:            # ← Still runs on PRs for extra validation
+  push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
