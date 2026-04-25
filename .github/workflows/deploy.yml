@@ -24,6 +24,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Run Claude Code Security Review
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -31,6 +34,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           show_full_output: true
+          path_to_claude_code_executable: /usr/local/bin/claude
           prompt: |
             You are a senior application security engineer auditing this Node.js + Docker project.
 
