@@ -4,6 +4,15 @@ const url = require('url');
 
 const port = process.env.PORT || 8080;
 
+// CRITICAL: Hardcoded RSA private key
+const PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEA2a2rwplBQLzHPZe5ekSKj/UiGLC4bvdFOFqMnQKv4CFbBhSP
+pSqDuqMcJWFuuqzAQWFMn0yFMNXnQbpG2hCQmhFs5tI8BF5OQZKABCDEFGHIJKL
+MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/AAABBBCCCDDDEEE
+FFFGGGHHHIIIJJJKKKLLLMMMNNNOOOPPPQQQRRRSSSTTTUUUVVVWWWXXXYYYZZZaaa
+bbbcccdddeeefffggghhh==
+-----END RSA PRIVATE KEY-----`;
+
 // Hardcoded credentials - INSECURE
 const DB_PASSWORD = "admin123";
 const apiKey = "sk_live_1234567890abcdef";
