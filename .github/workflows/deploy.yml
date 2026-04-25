@@ -52,6 +52,12 @@ jobs:
           - OWASP A02: Cryptographic Failures (unencrypted sensitive data, weak algorithms, HTTP instead of HTTPS)
           - OWASP A03: Injection (SQL, command, LDAP, NoSQL, OS injection)
           - OWASP A08: Software and Data Integrity Failures (untrusted deserialization, unsigned code)
+            Specifically check for:
+            * Dockerfile: no Docker Content Trust (DOCKER_CONTENT_TRUST=1 not set, no --disable-content-trust=false)
+            * Dockerfile: base image pulled without digest pinning (e.g. node:18-alpine instead of node:18-alpine@sha256:...)
+            * app.js / source files: no integrity verification on imported modules or remote scripts
+            * No package-lock.json or npm-shrinkwrap.json present (means dependency integrity not locked)
+            * npm install used instead of npm ci (npm ci enforces lockfile integrity)
 
           HIGH (must fail the review):
           - Cross-site scripting (XSS)
