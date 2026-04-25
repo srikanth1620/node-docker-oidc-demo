@@ -48,23 +48,33 @@ jobs:
           - SQL injection
           - Container running as root (no USER directive in Dockerfile)
           - Unauthenticated endpoints that expose sensitive operations
+          - OWASP A01: Broken Access Control (missing auth, privilege escalation, CORS misconfiguration)
+          - OWASP A02: Cryptographic Failures (unencrypted sensitive data, weak algorithms, HTTP instead of HTTPS)
+          - OWASP A03: Injection (SQL, command, LDAP, NoSQL, OS injection)
+          - OWASP A08: Software and Data Integrity Failures (untrusted deserialization, unsigned code)
 
           HIGH (must fail the review):
           - Cross-site scripting (XSS)
           - Sensitive data written to logs
           - Missing security headers
+          - OWASP A04: Insecure Design (missing threat controls, insecure business logic)
+          - OWASP A07: Identification and Authentication Failures (weak passwords, broken session management)
+          - OWASP A09: Security Logging and Monitoring Failures (secrets in logs, no audit trail)
+          - OWASP A10: Server-Side Request Forgery (SSRF)
 
           MEDIUM (flag but do not fail):
           - Deprecated APIs
           - Missing rate limiting
           - Unpinned base images
+          - OWASP A05: Security Misconfiguration (default credentials, unnecessary features enabled, verbose errors)
+          - OWASP A06: Vulnerable and Outdated Components (outdated dependencies with known CVEs)
 
           LOW (flag but do not fail):
           - Missing .dockerignore
           - Missing HEALTHCHECK
 
           ## Instructions
-          Review ALL the source files below against the policy above.
+          Review ALL the source files below against the company policy and OWASP Top 10 above.
 
           Source code:
 
