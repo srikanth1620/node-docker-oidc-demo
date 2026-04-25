@@ -67,6 +67,7 @@ jobs:
     # Run on direct push (feature branch or main) or manual trigger
     # Skip if security-check failed on a PR
     if: |
+      always() &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (needs.security-check.result == 'success' || needs.security-check.result == 'skipped')
 
