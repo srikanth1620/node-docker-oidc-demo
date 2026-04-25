@@ -39,12 +39,32 @@ jobs:
           payload=$(jq -n \
             --arg content "You are a senior security engineer auditing a Node.js + Docker project.
 
-          Review ALL the source files below for security issues including:
+          ## Company Security Policy - Severity Overrides
+          Apply these severity levels regardless of industry defaults:
+
+          CRITICAL (any one of these alone must fail the review):
           - Hardcoded secrets, passwords, API keys, or private keys
           - Command injection or remote code execution
           - SQL injection
+          - Container running as root (no USER directive in Dockerfile)
+          - Unauthenticated endpoints that expose sensitive operations
+
+          HIGH (must fail the review):
           - Cross-site scripting (XSS)
-          - Any other OWASP Top 10 vulnerabilities
+          - Sensitive data written to logs
+          - Missing security headers
+
+          MEDIUM (flag but do not fail):
+          - Deprecated APIs
+          - Missing rate limiting
+          - Unpinned base images
+
+          LOW (flag but do not fail):
+          - Missing .dockerignore
+          - Missing HEALTHCHECK
+
+          ## Instructions
+          Review ALL the source files below against the policy above.
 
           Source code:
 
