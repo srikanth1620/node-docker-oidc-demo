@@ -28,12 +28,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          # Collect all source files
-          source_content=$(find . \
-            -not -path './.git/*' \
-            -not -path './node_modules/*' \
-            \( -name "*.js" -o -name "*.ts" -o -name "Dockerfile" -o -name "*.json" \) \
-            -exec sh -c 'echo "=== {} ===" && cat {}' \;)
+          # Scan only app.js for direct comparison with Semgrep
+          source_content=$(echo "=== app.js ===" && cat app.js)
 
           # Build JSON payload using jq to safely escape content
           payload=$(jq -n \
