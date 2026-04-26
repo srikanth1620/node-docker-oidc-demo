@@ -1,0 +1,168 @@
+name: Deploy Node.js Docker App to Azure
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  security-check:
+    name: security-check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'   # Only on PRs
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Security Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Collect all source files
+          source_content=$(find . \
+            -not -path './.git/*' \
+            -not -path './node_modules/*' \
+            \( -name "*.js" -o -name "*.ts" -o -name "Dockerfile" -o -name "*.json" \) \
+            -exec sh -c 'echo "=== {} ===" && cat {}' \;)
+
+          # Build JSON payload using jq to safely escape content
+          payload=$(jq -n \
+            --arg content "You are a senior security engineer auditing a Node.js + Docker project.
+
+          ## Company Security Policy - Severity Overrides
+          Apply these severity levels regardless of industry defaults:
+
+          CRITICAL (any one of these alone must fail the review):
+          - Hardcoded secrets, passwords, API keys, or private keys
+          - Command injection or remote code execution
+          - SQL injection
+          - Container running as root (no USER directive in Dockerfile)
+          - Unauthenticated endpoints that expose sensitive operations
+          - OWASP A01: Broken Access Control (missing auth, privilege escalation, CORS misconfiguration)
+          - OWASP A02: Cryptographic Failures (unencrypted sensitive data, weak algorithms, HTTP instead of HTTPS)
+          - OWASP A03: Injection (SQL, command, LDAP, NoSQL, OS injection)
+          - OWASP A08: Software and Data Integrity Failures (untrusted deserialization, unsigned code)
+            Specifically check for:
+            * Dockerfile: no Docker Content Trust (DOCKER_CONTENT_TRUST=1 not set, no --disable-content-trust=false)
+            * Dockerfile: base image pulled without digest pinning (e.g. node:18-alpine instead of node:18-alpine@sha256:...)
+            * app.js / source files: no integrity verification on imported modules or remote scripts
+            * No package-lock.json or npm-shrinkwrap.json present (means dependency integrity not locked)
+            * npm install used instead of npm ci (npm ci enforces lockfile integrity)
+
+          HIGH (must fail the review):
+          - Cross-site scripting (XSS)
+          - Sensitive data written to logs
+          - Missing security headers
+          - OWASP A04: Insecure Design (missing threat controls, insecure business logic)
+          - OWASP A07: Identification and Authentication Failures (weak passwords, broken session management)
+          - OWASP A09: Security Logging and Monitoring Failures (secrets in logs, no audit trail)
+          - OWASP A10: Server-Side Request Forgery (SSRF)
+
+          MEDIUM (flag but do not fail):
+          - Deprecated APIs
+          - Missing rate limiting
+          - Unpinned base images
+          - OWASP A05: Security Misconfiguration (default credentials, unnecessary features enabled, verbose errors)
+          - OWASP A06: Vulnerable and Outdated Components (outdated dependencies with known CVEs)
+
+          LOW (flag but do not fail):
+          - Missing .dockerignore
+          - Missing HEALTHCHECK
+
+          ## Instructions
+          Review ALL the source files below against the company policy and OWASP Top 10 above.
+
+          Source code:
+
+          $source_content
+
+          At the very end of your response output exactly one of these two lines:
+          SECURITY REVIEW PASSED
+          or
+          SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND" \
+            '{model:"claude-opus-4-7",max_tokens:2048,messages:[{role:"user",content:$content}]}')
+
+          # Call Claude API
+          response=$(curl -sf https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$payload")
+
+          # Extract and display full response
+          verdict=$(echo "$response" | jq -r '.content[0].text // "ERROR: No response from Claude"')
+          echo "=== CLAUDE SECURITY REPORT ==="
+          echo "$verdict"
+          echo "=============================="
+
+          # Save report as artifact
+          echo "$verdict" > /tmp/security-report.txt
+
+          # Fail if critical issues found
+          if echo "$verdict" | grep -qi "SECURITY REVIEW FAILED"; then
+            echo "❌ Security review FAILED"
+            exit 1
+          else
+            echo "✅ Security review PASSED"
+          fi
+
+      - name: Upload Security Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-security-report
+          path: /tmp/security-report.txt
+
+  build-and-deploy:
+    name: build-and-deploy
+    needs: security-check
+    runs-on: ubuntu-latest
+    # Run on direct push (feature branch or main) or manual trigger
+    # Skip if security-check failed on a PR
+    if: |
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (needs.security-check.result == 'success' || needs.security-check.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name nodeoidcdemoacr
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            nodeoidcdemoacr.azurecr.io/node-docker-demo:${{ github.sha }}
+            nodeoidcdemoacr.azurecr.io/node-docker-demo:latest
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'node-docker-demo-app'
+          slot-name: 'Production'
+          images: 'nodeoidcdemoacr.azurecr.io/node-docker-demo:latest'
+
+      - name: Deployment Summary
+        run: echo "✅ Deployment completed successfully to ${{ github.ref }}!"
