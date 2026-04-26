@@ -36,6 +36,13 @@ jobs:
             --config "p/xss" \
             --config "p/sql-injection" \
             --config "p/command-injection" \
+            --config "p/cwe-top-25" \
+            --config "p/security-audit" \
+            --config "p/default" \
+            --config "p/express" \
+            --config "p/insecure-transport" \
+            --config "p/gitleaks" \
+            --config "r/javascript.lang.security" \
             --include "app.js" \
             --text \
             . 2>&1 | tee /tmp/semgrep-report.txt || true
