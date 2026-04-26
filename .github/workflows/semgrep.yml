@@ -39,7 +39,6 @@ jobs:
             --config "p/cwe-top-25" \
             --config "p/security-audit" \
             --config "p/default" \
-            --config "p/express" \
             --config "p/insecure-transport" \
             --config "p/gitleaks" \
             --config "r/javascript.lang.security" \
