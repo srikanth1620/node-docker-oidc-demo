@@ -49,7 +49,31 @@ const ADMIN_PASS = "password123";
 
 // VULNERABILITY: Missing Rate Limiting (MEDIUM - OWASP A05)
 // No rate limiting on any endpoint. Allows brute force attacks, credential
-// stuffing, and DoS. Fix: use a rate limiting middleware (e.g. express-rate-limit).
+// stuffing, and DoS. An attacker can hammer /user or /run thousands of times
+// per second with zero throttling.
+//
+// Fix: add a rate limiter before the server handles requests. Example using
+// the 'express-rate-limit' pattern adapted for plain Node.js http:
+//
+//   const requestCounts = {};
+//   const RATE_LIMIT = 100;        // max requests
+//   const WINDOW_MS = 60 * 1000;   // per 60 seconds per IP
+//
+//   const rateLimiter = (req, res) => {
+//     const ip = req.socket.remoteAddress;
+//     const now = Date.now();
+//     if (!requestCounts[ip]) requestCounts[ip] = [];
+//     requestCounts[ip] = requestCounts[ip].filter(t => now - t < WINDOW_MS);
+//     if (requestCounts[ip].length >= RATE_LIMIT) {
+//       res.writeHead(429, { 'Content-Type': 'text/plain' });
+//       res.end('Too Many Requests');
+//       return false;
+//     }
+//     requestCounts[ip].push(now);
+//     return true;
+//   };
+//
+//   // Then inside createServer: if (!rateLimiter(req, res)) return;
 
 // VULNERABILITY: Missing Security Headers (HIGH)
 // No Content-Security-Policy, X-Content-Type-Options, Strict-Transport-Security,
