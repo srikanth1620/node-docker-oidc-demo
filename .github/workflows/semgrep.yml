@@ -1,0 +1,65 @@
+name: Semgrep Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  semgrep-scan:
+    name: semgrep-scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install semgrep --quiet
+
+      - name: Run Semgrep on app_semgrep.js
+        run: |
+          echo "=== SEMGREP SECURITY REPORT ==="
+          semgrep scan \
+            --config "p/owasp-top-ten" \
+            --config "p/secrets" \
+            --config "p/nodejs" \
+            --config "p/javascript" \
+            --config "p/nodejsscan" \
+            --config "p/xss" \
+            --config "p/sql-injection" \
+            --config "p/command-injection" \
+            --config "p/cwe-top-25" \
+            --config "p/security-audit" \
+            --config "p/default" \
+            --config "p/insecure-transport" \
+            --config "p/gitleaks" \
+            --config "r/javascript.lang.security" \
+            --include "app.js" \
+            --text \
+            . 2>&1 | tee /tmp/semgrep-report.txt || true
+          echo "=============================="
+
+      - name: Fail if issues found
+        run: |
+          if grep -q "findings" /tmp/semgrep-report.txt || grep -q "Finding" /tmp/semgrep-report.txt; then
+            echo "❌ Semgrep found security issues"
+            cat /tmp/semgrep-report.txt
+            exit 1
+          else
+            echo "✅ Semgrep scan passed"
+          fi
+
+      - name: Upload Semgrep Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: /tmp/semgrep-report.txt
