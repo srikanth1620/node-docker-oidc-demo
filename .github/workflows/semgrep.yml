@@ -36,7 +36,7 @@ jobs:
             --config "p/xss" \
             --config "p/sql-injection" \
             --config "p/command-injection" \
-            --include "app_semgrep.js" \
+            --include "app.js" \
             --text \
             . 2>&1 | tee /tmp/semgrep-report.txt || true
           echo "=============================="
