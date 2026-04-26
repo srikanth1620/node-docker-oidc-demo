@@ -78,15 +78,17 @@ jobs:
           ## Instructions
           Review ALL the source files below against the company policy and OWASP Top 10 above.
 
-          Source code:
-
-          $source_content
-
-          At the very end of your response output exactly one of these two lines:
+          IMPORTANT: Output the verdict on the VERY FIRST LINE before anything else:
           SECURITY REVIEW PASSED
           or
-          SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND" \
-            '{model:"claude-opus-4-7",max_tokens:2048,messages:[{role:"user",content:$content}]}')
+          SECURITY REVIEW FAILED - CRITICAL OR HIGH SEVERITY ISSUES FOUND
+
+          Then provide the detailed findings below the verdict.
+
+          Source code:
+
+          $source_content" \
+            '{model:"claude-opus-4-7",max_tokens:8192,messages:[{role:"user",content:$content}]}')
 
           # Call Claude API
           response=$(curl -sf https://api.anthropic.com/v1/messages \
